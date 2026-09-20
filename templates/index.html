@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SketchAI Studio — Portrait to Pencil Sketch</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom Slider & Glassmorphism styles */
+    .glass {
+      background: rgba(24, 24, 27, 0.75);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .custom-range::-webkit-slider-thumb {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #38bdf8;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+    }
+    /* Comparison Slider Clip */
+    .compare-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      overflow: hidden;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen flex flex-col font-sans selection:bg-sky-500 selection:text-white">
+
+  <!-- Navigation Bar -->
+  <header class="border-b border-zinc-800/80 bg-zinc-900/50 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center font-bold text-lg shadow-lg shadow-sky-500/20">
+          ✏️
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight tracking-tight">SketchAI <span class="text-sky-400">Studio</span></h1>
+          <p class="text-xs text-zinc-400">Pix2Pix++ & Adaptive Tone Synthesis</p>
+        </div>
+      </div>
+      <span class="text-xs px-3 py-1 rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700 font-mono">
+        Edge Optimized v1.0
+      </span>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+    
+    <!-- Left Sidebar: Controls & Settings (4 cols) -->
+    <section class="lg:col-span-4 space-y-6">
+      
+      <!-- Upload Card -->
+      <div class="glass rounded-2xl p-6 shadow-xl">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-400 mb-4 flex items-center gap-2">
+          <span>1.</span> Upload Portrait
+        </h2>
+
+        <div id="dropZone" class="border-2 border-dashed border-zinc-700 hover:border-sky-500 transition-colors rounded-xl p-6 text-center cursor-pointer group bg-zinc-900/30">
+          <input type="file" id="imageInput" accept="image/png, image/jpeg, image/webp" class="hidden">
+          <div class="flex flex-col items-center justify-center space-y-2">
+            <div class="w-12 h-12 rounded-full bg-zinc-800 group-hover:bg-sky-500/20 group-hover:text-sky-400 flex items-center justify-center text-zinc-400 transition-colors">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <p class="text-sm text-zinc-300 font-medium">Click to browse or drag & drop</p>
+            <p class="text-xs text-zinc-500">Supports JPG, PNG, WEBP (Max 16MB)</p>
+          </div>
+        </div>
+
+        <div id="fileMeta" class="mt-3 text-xs text-zinc-400 truncate hidden">
+          Selected: <span id="fileName" class="text-sky-400 font-mono"></span>
+        </div>
+      </div>
+
+      <!-- Parameter Adjustment Card -->
+      <div class="glass rounded-2xl p-6 shadow-xl space-y-5">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+          <span>2.</span> Sketch Parameters
+        </h2>
+
+        <!-- Lead Hardness Slider (2H -> 6B) -->
+        <div>
+          <div class="flex justify-between items-center mb-1.5">
+            <label class="text-sm font-medium text-zinc-300">Pencil Lead Grade</label>
+            <span id="leadBadge" class="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-sky-500/20 text-sky-400 border border-sky-500/30">
+              HB (Medium)
+            </span>
+          </div>
+          <input type="range" id="leadGrade" min="1" max="5" step="1" value="3" class="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer custom-range">
+          <div class="flex justify-between text-[10px] text-zinc-500 font-mono mt-1">
+            <span>2H (Fine)</span>
+            <span>H</span>
+            <span>HB</span>
+            <span>2B</span>
+            <span>6B (Charcoal)</span>
+          </div>
+        </div>
+
+        <!-- Stroke Contrast Slider -->
+        <div>
+          <div class="flex justify-between items-center mb-1.5">
+            <label class="text-sm font-medium text-zinc-300">Stroke Contrast</label>
+            <span id="contrastVal" class="text-xs font-mono text-zinc-400">1.2x</span>
+          </div>
+          <input type="range" id="contrast" min="0.6" max="2.0" step="0.1" value="1.2" class="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer custom-range">
+        </div>
+
+        <!-- Paper Grain Texture Toggle -->
+        <div class="flex items-center justify-between pt-2 border-t border-zinc-800">
+          <div>
+            <label class="text-sm font-medium text-zinc-300">Graphite Paper Grain</label>
+            <p class="text-[11px] text-zinc-500">Adds microscopic paper tooth texture</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="paperTexture" checked class="sr-only peer">
+            <div class="w-10 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+          </label>
+        </div>
+
+        <!-- Render Button -->
+        <button id="convertBtn" disabled class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-sm shadow-lg shadow-sky-500/25 transition-all flex items-center justify-center space-x-2">
+          <span id="btnText">Synthesize Sketch</span>
+          <svg id="btnSpinner" class="animate-spin h-4 w-4 text-white hidden" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </button>
+
+      </div>
+    </section>
+
+    <!-- Right Workspace: Preview & Comparison View (8 cols) -->
+    <section class="lg:col-span-8 flex flex-col space-y-4">
+      
+      <!-- Workspace Card -->
+      <div class="glass rounded-2xl p-6 shadow-xl flex-1 flex flex-col">
+        
+        <div class="flex items-center justify-between pb-4 border-b border-zinc-800">
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-400">Canvas Preview</h2>
+          
+          <!-- View Mode Toggles -->
+          <div id="viewControls" class="flex items-center space-x-2 hidden">
+            <button id="modeSplit" class="text-xs px-3 py-1 rounded-md bg-sky-500/20 text-sky-400 font-medium border border-sky-500/30">
+              Split Compare
+            </button>
+            <button id="modeSketchOnly" class="text-xs px-3 py-1 rounded-md bg-zinc-800 text-zinc-400 font-medium hover:bg-zinc-700">
+              Sketch Only
+            </button>
+          </div>
+        </div>
+
+        <!-- Viewport Area -->
+        <div class="flex-1 flex items-center justify-center p-4 min-h-[420px] relative overflow-hidden rounded-xl bg-zinc-950/60 border border-zinc-800/60 my-auto">
+          
+          <!-- Empty State -->
+          <div id="placeholderState" class="text-center space-y-3">
+            <div class="w-16 h-16 mx-auto rounded-full bg-zinc-900 flex items-center justify-center text-2xl text-zinc-600">
+              🖼️
+            </div>
+            <p class="text-sm text-zinc-500">Upload a portrait to start pencil sketch rendering</p>
+          </div>
+
+          <!-- Comparison Slider Container -->
+          <div id="canvasWrapper" class="relative max-w-full max-h-[580px] hidden select-none">
+            <!-- Sketch Result (Bottom Image) -->
+            <img id="sketchImg" class="max-w-full max-h-[580px] rounded-lg object-contain block mx-auto shadow-2xl" alt="AI Pencil Sketch">
+
+            <!-- Original Image (Overlaid for split comparison) -->
+            <div id="compareOverlay" class="compare-overlay">
+              <img id="originalImg" class="max-w-full max-h-[580px] rounded-lg object-contain block mx-auto" alt="Original Portrait">
+            </div>
+
+            <!-- Interactive Split Handle -->
+            <input type="range" id="sliderHandle" min="0" max="100" value="50" class="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-20">
+            <div id="splitDivider" class="absolute top-0 bottom-0 w-0.5 bg-sky-400 pointer-events-none shadow-[0_0_10px_rgba(56,189,248,0.8)] z-10" style="left: 50%;">
+              <div class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-sky-500 border-2 border-white flex items-center justify-center text-[9px] shadow-lg">
+                ↔
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Bottom Actions -->
+        <div id="actionToolbar" class="pt-4 border-t border-zinc-800 flex items-center justify-between hidden">
+          <div class="text-xs text-zinc-400 font-mono">
+            Resolution: <span id="resMeta" class="text-zinc-200"></span>
+          </div>
+          <button id="downloadBtn" class="py-2.5 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-semibold text-xs tracking-wider uppercase transition-colors shadow-lg shadow-emerald-600/20 flex items-center space-x-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            <span>Download HD Sketch</span>
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Frontend Logic -->
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const imageInput = document.getElementById('imageInput');
+    const convertBtn = document.getElementById('convertBtn');
+    const btnText = document.getElementById('btnText');
+    const btnSpinner = document.getElementById('btnSpinner');
+    const fileName = document.getElementById('fileName');
+    const fileMeta = document.getElementById('fileMeta');
+
+    const leadGrade = document.getElementById('leadGrade');
+    const leadBadge = document.getElementById('leadBadge');
+    const contrast = document.getElementById('contrast');
+    const contrastVal = document.getElementById('contrastVal');
+    const paperTexture = document.getElementById('paperTexture');
+
+    const placeholderState = document.getElementById('placeholderState');
+    const canvasWrapper = document.getElementById('canvasWrapper');
+    const originalImg = document.getElementById('originalImg');
+    const sketchImg = document.getElementById('sketchImg');
+    const compareOverlay = document.getElementById('compareOverlay');
+    const sliderHandle = document.getElementById('sliderHandle');
+    const splitDivider = document.getElementById('splitDivider');
+    const viewControls = document.getElementById('viewControls');
+    const actionToolbar = document.getElementById('actionToolbar');
+    const resMeta = document.getElementById('resMeta');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let currentFile = null;
+    let latestSketchUrl = null;
+
+    const gradeLabels = {
+      1: "2H (Technical)",
+      2: "H (Hard)",
+      3: "HB (Standard)",
+      4: "2B (Soft)",
+      5: "6B (Charcoal)"
+    };
+
+    // Lead Slider Updates
+    leadGrade.addEventListener('input', (e) => {
+      leadBadge.innerText = gradeLabels[e.target.value];
+    });
+
+    // Contrast Slider Updates
+    contrast.addEventListener('input', (e) => {
+      contrastVal.innerText = `${e.target.value}x`;
+    });
+
+    // Drag and drop handlers
+    dropZone.addEventListener('click', () => imageInput.click());
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('border-sky-500', 'bg-sky-500/10');
+    });
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('border-sky-500', 'bg-sky-500/10');
+    });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('border-sky-500', 'bg-sky-500/10');
+      if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+    imageInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) handleFile(e.target.files[0]);
+    });
+
+    function handleFile(file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file (PNG, JPG, WEBP).');
+        return;
+      }
+      currentFile = file;
+      fileName.innerText = file.name;
+      fileMeta.classList.remove('hidden');
+      convertBtn.removeAttribute('disabled');
+
+      // Local preview of uploaded file
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        originalImg.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Interactive Comparison Slider
+    sliderHandle.addEventListener('input', (e) => {
+      const val = e.target.value;
+      compareOverlay.style.width = `${val}%`;
+      splitDivider.style.left = `${val}%`;
+    });
+
+    // Toggle Modes (Split vs Sketch Only)
+    document.getElementById('modeSplit').addEventListener('click', function() {
+      compareOverlay.classList.remove('hidden');
+      splitDivider.classList.remove('hidden');
+      sliderHandle.classList.remove('hidden');
+      this.classList.replace('bg-zinc-800', 'bg-sky-500/20');
+      this.classList.replace('text-zinc-400', 'text-sky-400');
+      const sketchBtn = document.getElementById('modeSketchOnly');
+      sketchBtn.classList.replace('bg-sky-500/20', 'bg-zinc-800');
+      sketchBtn.classList.replace('text-sky-400', 'text-zinc-400');
+    });
+
+    document.getElementById('modeSketchOnly').addEventListener('click', function() {
+      compareOverlay.classList.add('hidden');
+      splitDivider.classList.add('hidden');
+      sliderHandle.classList.add('hidden');
+      this.classList.replace('bg-zinc-800', 'bg-sky-500/20');
+      this.classList.replace('text-zinc-400', 'text-sky-400');
+      const splitBtn = document.getElementById('modeSplit');
+      splitBtn.classList.replace('bg-sky-500/20', 'bg-zinc-800');
+      splitBtn.classList.replace('text-sky-400', 'text-zinc-400');
+    });
+
+    // Send to Backend for Conversion
+    convertBtn.addEventListener('click', async () => {
+      if (!currentFile) return;
+
+      const formData = new FormData();
+      formData.append('image', currentFile);
+      formData.append('lead_grade', leadGrade.value);
+      formData.append('contrast', contrast.value);
+      formData.append('paper_texture', paperTexture.checked);
+
+      // UI Loading state
+      btnText.innerText = "Synthesizing...";
+      btnSpinner.classList.remove('hidden');
+      convertBtn.setAttribute('disabled', 'true');
+
+      try {
+        const response = await fetch('/api/convert', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.status === 'success') {
+          latestSketchUrl = data.sketch;
+          sketchImg.src = data.sketch;
+
+          // Align overlay dimensions
+          sketchImg.onload = () => {
+            compareOverlay.style.width = '50%';
+            splitDivider.style.left = '50%';
+            sliderHandle.value = 50;
+
+            placeholderState.classList.add('hidden');
+            canvasWrapper.classList.remove('hidden');
+            viewControls.classList.remove('hidden');
+            actionToolbar.classList.remove('hidden');
+            resMeta.innerText = `${data.dimensions.width} × ${data.dimensions.height} px`;
+          };
+        } else {
+          alert('Conversion Error: ' + (data.error || 'Server error occurred'));
+        }
+      } catch (err) {
+        alert('Request failed: ' + err.message);
+      } finally {
+        btnText.innerText = "Synthesize Sketch";
+        btnSpinner.classList.add('hidden');
+        convertBtn.removeAttribute('disabled');
+      }
+    });
+
+    // Download HD Sketch
+    downloadBtn.addEventListener('click', () => {
+      if (!latestSketchUrl) return;
+      const a = document.createElement('a');
+      a.href = latestSketchUrl;
+      a.download = `pencil_sketch_${Date.now()}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+  </script>
+</body>
+</html>
